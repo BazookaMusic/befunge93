@@ -1,4 +1,4 @@
-#include "befunge.hpp"
+#include "include/befunge.hpp"
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -9,6 +9,8 @@ int main(int argc, char *argv[]) {
         std::cerr << "Wrong number of arguments. One required," << argc << 
         " given. Exiting" << std::endl;
     }
+
+    std::cout.setf(std::ios::unitbuf);
 
     char * file_path = argv[1];
 

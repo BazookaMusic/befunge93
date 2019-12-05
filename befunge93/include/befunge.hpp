@@ -1,3 +1,5 @@
+#ifndef INCLUDE_BEFUNGE_HPP
+    #define INCLUDE_BEFUNGE_HPP
 #include <iostream>
 #include <stdlib.h>
 #include <unistd.h>
@@ -582,3 +584,4 @@ class VM {
                 exit(-1);
         }
 };
+#endif

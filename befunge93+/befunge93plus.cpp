@@ -1,7 +1,8 @@
-#include "befungeplus.hpp"
+#include "include/befungeplus.hpp"
 #include <iostream>
 
 int main(int argc, char *argv[]) {
+    std::cout.setf(std::ios::unitbuf);
     if (argc < 2) {
         std::cerr << "No file provided. Exiting." << std::endl;
         exit(-1);

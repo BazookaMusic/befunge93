@@ -1,8 +1,12 @@
+#ifndef INCLUDE_BEFUNGEPLUS_HPP
+    #define INCLUDE_BEFUNGEPLUS_HPP
 #include <iostream>
 #include <stdlib.h>
 #include <fstream>
 #include <string>
 #include <stack>
+#include <vector>
+
 
 
 static const signed long long pointer_mask = 3UL << 63;
@@ -20,40 +24,25 @@ struct Cell {
     Cell(signed long long int head, signed long long int tail): head(head), tail(tail), marked(false) {}
 };
 
-static Cell * pointer_to_addr(signed long long p) {
+inline Cell * pointer_to_addr(signed long long p) {
     return (Cell *)(p & not_pointer_mask);
 }
 
-struct FreeListNode {
-    Cell* cell;
-    FreeListNode* next;
-
-    FreeListNode(Cell* cell, FreeListNode* next): cell(cell), next(next){}
-};
-
 class FreeList {
     private:
-        FreeListNode* head;
+        std::stack<Cell*, std::vector<Cell*>> freelist;
     
     public:
 
-        FreeList(): head(NULL){}
+        FreeList() {}
 
-        ~FreeList() {
-            while (head) {
-                FreeListNode* temp = head;
-                head = head->next;
-                delete temp;
-            }
-        }
 
         bool empty() {
-            return head == NULL;
+            return freelist.empty();
         }
 
         void insertFront(Cell* cell) {
-            FreeListNode* new_cell = new FreeListNode(cell,head);
-            head = new_cell;
+            freelist.push(cell);
         }
 
         Cell* removeFront() {
@@ -61,15 +50,11 @@ class FreeList {
                 return NULL;
             }
 
-            FreeListNode* temp = head;
+            Cell* elem = freelist.top();
 
-            Cell* cell = head->cell;
+            freelist.pop();
 
-            head = head->next;
-
-            delete temp;
-
-            return cell;
+            return elem;
         }
 };
 
@@ -140,7 +125,7 @@ class Heap {
             free_list.insertFront(cell);
         }
 
-        bool isPointer(signed long long candidate) {
+        static bool isPointer(signed long long candidate) {
             return (candidate & pointer_mask) != 0;
         }
 
@@ -291,16 +276,18 @@ class GC {
 
             cell->marked = true;
 
-            if (heap.isPointer(cell->tail)) {
+            
+            if (Heap::isPointer(cell->tail)) {
                 mark(pointer_to_addr(cell->tail));
             }
+        
         }
         // mark all cells
         void mark_garbage() {
             signed long long* stack_contents = pointers.contents;
 
             for (int i = 0; i < pointers.size(); i++) {
-                if (heap.isPointer(stack_contents[i])) {
+                if (Heap::isPointer(stack_contents[i])) {
                     mark(pointer_to_addr(stack_contents[i]));
                 }
             }
@@ -321,7 +308,7 @@ class GC {
         signed long long pop() {
             signed long long val = stack.pop();
 
-            if (heap.isPointer(val)) {
+            if (Heap::isPointer(val)) {
                 pointers.pop();
             }
 
@@ -329,22 +316,24 @@ class GC {
         }
 
         void push(signed long long val) {
-            if (heap.isPointer(val)) {
+            if (Heap::isPointer(val)) {
                 pointers.push(val);
             }
 
             stack.push(val);
         }
 
+        
+
         signed long long allocate(signed long long head, signed long long tail) {
             if (!heap.hasSpace()) {
                 
                 // don't forget to mark pointers we're inserting
-                if (heap.isPointer(tail)) {
+                if (Heap::isPointer(tail)) {
                     mark(pointer_to_addr(tail));
                 }
 
-                if (heap.isPointer(head)) {
+                if (Heap::isPointer(head)) {
                     mark(pointer_to_addr(tail));
                 }
 
@@ -355,7 +344,7 @@ class GC {
         }
 
         signed long long get_head(signed long long addr) {
-            if (!heap.isPointer(addr)) {
+            if (!Heap::isPointer(addr)) {
                 std::cerr << "Invalid pointer access" << std::endl;
                 exit(-1);
             }
@@ -363,7 +352,7 @@ class GC {
         }
 
         signed long long get_tail(signed long long addr) {
-            if (!heap.isPointer(addr)) {
+            if (!Heap::isPointer(addr)) {
                 std::cerr << "Invalid pointer access" << std::endl;
                 exit(-1);
             }
@@ -672,19 +661,19 @@ class VM {
                 pc.move(curr_dir);
                 value2 = gc.pop();
                 value1 = gc.pop();
-                stack.push(value1 + value2);
+                gc.push(value1 + value2);
                 NEXT_INS;
             SUB_LAB:
                 pc.move(curr_dir);
                 value2 = gc.pop();
                 value1 = gc.pop();
-                stack.push(value1 - value2);
+                gc.push(value1 - value2);
                 NEXT_INS;
             MUL_LAB:
                 pc.move(curr_dir);
                 value2 = gc.pop();
                 value1 = gc.pop();
-                stack.push(value1 * value2);
+                gc.push(value1 * value2);
                 NEXT_INS;
             DIV_LAB:
                 pc.move(curr_dir);
@@ -694,7 +683,7 @@ class VM {
                     std::cerr << "Error: Division by zero" << std::endl;
                     exit(-1);
                 }
-                stack.push(value1 / value2);
+                gc.push(value1 / value2);
                 NEXT_INS;
             MOD_LAB:
                 pc.move(curr_dir);
@@ -704,18 +693,18 @@ class VM {
                     std::cerr << "Error: Division by zero" << std::endl;
                     exit(-1);
                 }
-                stack.push(value1 % value2);
+                gc.push(value1 % value2);
                 NEXT_INS;
             NOT_LAB:
                 pc.move(curr_dir);
                 value1 = gc.pop();
-                stack.push(value1 != 0? 0: 1);
+                gc.push(value1 != 0? 0: 1);
                 NEXT_INS;
             GT_LAB:
                 pc.move(curr_dir);
                 value2 = gc.pop();
                 value1 = gc.pop();
-                stack.push(value1 > value2? 1 : 0 );
+                gc.push(value1 > value2? 1 : 0 );
                 NEXT_INS;
             RIGHT_LAB:
                 curr_dir = RIGHT;
@@ -756,7 +745,7 @@ class VM {
                 // " is met again
                 while(program[pc.y][pc.x] != 24) {
                     // convert back to char
-                    stack.push(bytecode_to_char(program[pc.y][pc.x]));
+                    gc.push(bytecode_to_char(program[pc.y][pc.x]));
                     pc.move(curr_dir);
                 }
                 // skip second "                
@@ -801,7 +790,7 @@ class VM {
 
                 if (value1 <= pc.limitx && value2 <= pc.limity && 
                     value1 >= 0 && value2 >= 0) {
-                        stack.push(bytecode_to_char(program[value1][value2]));
+                        gc.push(bytecode_to_char(program[value1][value2]));
                 } else {
                     std::cerr << "GET: Invalid program location access: x=" << value1 << " y=" << value2 << std::endl;
                     exit(-1);
@@ -833,52 +822,52 @@ class VM {
             INPUTI_LAB:
                 pc.move(curr_dir);
                 std::cin >> value1;
-                stack.push(value1);
+                gc.push(value1);
                 NEXT_INS;
             INPUTC_LAB:
                 pc.move(curr_dir);
                 std::cin.get(char_buf);
-                stack.push((signed long long int)char_buf);
+                gc.push((signed long long int)char_buf);
                 NEXT_INS;
             NUM0_LAB:
                 pc.move(curr_dir);
-                stack.push(0);
+                gc.push(0);
                 NEXT_INS;
             NUM1_LAB:
                 pc.move(curr_dir);
-                stack.push(1);
+                gc.push(1);
                 NEXT_INS;
             NUM2_LAB:
                 pc.move(curr_dir);
-                stack.push(2);
+                gc.push(2);
                 NEXT_INS;
             NUM3_LAB:
                 pc.move(curr_dir);
-                stack.push(3);
+                gc.push(3);
                 NEXT_INS;
             NUM4_LAB:
                 pc.move(curr_dir);
-                stack.push(4);
+                gc.push(4);
                 NEXT_INS;
             NUM5_LAB:
                 pc.move(curr_dir);
-                stack.push(5);
+                gc.push(5);
                 NEXT_INS;
             NUM6_LAB:
                 pc.move(curr_dir);
-                stack.push(6);
+                gc.push(6);
                 NEXT_INS;
             NUM7_LAB:
                 pc.move(curr_dir);
-                stack.push(7);
+                gc.push(7);
                 NEXT_INS;
             NUM8_LAB:
                 pc.move(curr_dir);
-                stack.push(8);
+                gc.push(8);
                 NEXT_INS;
             NUM9_LAB:
                 pc.move(curr_dir);
-                stack.push(9);
+                gc.push(9);
                 NEXT_INS;
             NULL_LAB:
                 pc.move(curr_dir);
@@ -890,15 +879,15 @@ class VM {
                 value1 = gc.pop();
                 value2 = gc.pop();
                 signed long long val =  gc.allocate(value2,value1);
-                stack.push(val);
+                gc.push(val);
                 NEXT_INS;
             HEAD_LAB:
                 pc.move(curr_dir);
                 value1 = gc.pop();
 
-                if (heap.isPointer(value1)) {
+                if (Heap::isPointer(value1)) {
                     long long val = gc.get_head(value1);
-                    stack.push(val);
+                    gc.push(val);
                 } else {
                     std::cerr << "Invalid dereference " << value1 << std::endl;
                     exit(-1);
@@ -909,8 +898,8 @@ class VM {
                 pc.move(curr_dir);
                 value1 = gc.pop();
 
-                if (heap.isPointer(value1)) {
-                    stack.push(gc.get_tail(value1));
+                if (Heap::isPointer(value1)) {
+                    gc.push(gc.get_tail(value1));
                 } else {
                     std::cerr << "Invalid dereference " << value1 << std::endl;
                     exit(-1);
@@ -924,3 +913,5 @@ class VM {
                 exit(-1);
         }
 };
+
+#endif
